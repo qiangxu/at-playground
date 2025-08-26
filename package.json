@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "api:dev": "pnpm --dir apps/api start:dev",
+    "web:dev": "pnpm --dir apps/web dev --port 3000",
+    "db:migrate": "pnpm --dir apps/api dlx prisma migrate dev --name init"
+  },
+  "dependencies": {
+    "@privy-io/react-auth": "^2.22.0",
+    "axios": "^1.11.0",
+    "zod": "^4.1.3"
+  }
+}
