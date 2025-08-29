@@ -1,0 +1,18 @@
+type: erc20_restricted
+name: Demo Equity Token
+symbol: DET
+decimals: 18
+cap: "1000000000000000000000000"
+roles:
+  owner: "eoa:0xOWNER..."
+  minters: ["eoa:0xMINTER..."]
+  complianceAdmins: ["eoa:0xKYCADMIN..."]
+compliance:
+  mode: whitelist
+issuance:
+  schedule:
+    - t: "immediate"
+      mint: "300000000000000000000000"
+      to: "0xTREASURY..."
+whitelist:
+  allow: ["0xTREASURY...", "0xOWNER...", "0xMINTER..."]

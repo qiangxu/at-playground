@@ -1,0 +1,33 @@
+{
+    "name": "contracts",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "build": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat compile",
+        "test": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat test",
+        "deploy:factory": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat run deploy/00_deploy_factory.ts --network baseSepolia",
+        "deploy:yaml": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat run deploy/01_deploy_from_yaml.ts --network baseSepolia",
+        "export-abi": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat export-abi --out ../../packages/abi"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "packageManager": "pnpm@10.15.0",
+    "type": "module",
+    "devDependencies": {
+        "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+        "@openzeppelin/hardhat-upgrades": "^3.9.1",
+        "@types/node": "^24.3.0",
+        "dotenv": "^17.2.1",
+        "hardhat": "^2.26.3",
+        "ts-node": "^10.9.2",
+        "tsconfig-paths": "^4.2.0",
+        "typescript": "^5.9.2"
+    },
+    "dependencies": {
+        "@openzeppelin/contracts": "^5.4.0",
+        "@openzeppelin/contracts-upgradeable": "^5.4.0",
+        "js-yaml": "^4.1.0"
+    }
+}
