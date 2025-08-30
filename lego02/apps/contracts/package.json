@@ -14,7 +14,6 @@
     "author": "",
     "license": "ISC",
     "packageManager": "pnpm@10.15.0",
-    "type": "module",
     "devDependencies": {
         "@nomicfoundation/hardhat-toolbox": "^6.1.0",
         "@openzeppelin/hardhat-upgrades": "^3.9.1",

@@ -1,18 +1,21 @@
 type: erc20_restricted
-name: Demo Equity Token
-symbol: DET
+name: YunFeng Equity Token 0830
+symbol: YFET
 decimals: 18
 cap: "1000000000000000000000000"
 roles:
-  owner: "eoa:0xOWNER..."
-  minters: ["eoa:0xMINTER..."]
-  complianceAdmins: ["eoa:0xKYCADMIN..."]
+  owner: "0xa2dc890F376CE8604919d556567d95DD69363f54"
+  minters: ["0xa2dc890F376CE8604919d556567d95DD69363f54"]
+  complianceAdmins: ["0xa2dc890F376CE8604919d556567d95DD69363f54"]
 compliance:
   mode: whitelist
 issuance:
   schedule:
     - t: "immediate"
-      mint: "300000000000000000000000"
-      to: "0xTREASURY..."
+      mint: "1000000000000000000000"
+      to: "0xC2e67C96B86d7db05C50c87c14D08C7f59e5e2Ed"
 whitelist:
-  allow: ["0xTREASURY...", "0xOWNER...", "0xMINTER..."]
+  allow: 
+    - "0xa2dc890F376CE8604919d556567d95DD69363f54"
+    - "0xC2e67C96B86d7db05C50c87c14D08C7f59e5e2Ed"
+    - "0x570c0F440201724835274f310b8e13631c79003E"
