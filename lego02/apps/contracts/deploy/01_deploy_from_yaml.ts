@@ -57,17 +57,20 @@ async function main() {
   console.log("token:", tokenAddr);
 
   // grant roles on token
-  const minterRole = await token.MINTER_ROLE();
-  const complianceRole = await token.COMPLIANCE_ROLE();
+  //const minterRole = await token.MINTER_ROLE();
+  //const complianceRole = await token.COMPLIANCE_ROLE();
+
+  const ROLE_MINTER = ethers.id("MINTER_ROLE");
+  const ROLE_COMPLIANCE = ethers.id("COMPLIANCE_ROLE");
 
   for (const m of cfg.roles.minters || []) {
     const a = addr(m);
-    const tx = await token.connect(nm).grantRole(minterRole, a);
+    const tx = await token.connect(nm).grantRole(ROLE_MINTER, a);
     await tx.wait();
   }
   for (const c of cfg.roles.complianceAdmins || []) {
     const a = addr(c);
-    const tx = await token.connect(nm).grantRole(complianceRole, a);
+    const tx = await token.connect(nm).grantRole(ROLE_COMPLIANCE, a);
     await tx.wait();
   }
 
