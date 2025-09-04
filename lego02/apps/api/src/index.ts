@@ -4,8 +4,13 @@ import cors from "cors";
 import { z } from "zod";
 import { execa } from "execa";
 import path from "path";
+import { dirname } from "path";
 import fs from "fs";
 import yaml from "js-yaml";
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 app.use(cors());
@@ -54,13 +59,14 @@ app.post("/api/tokens/deploy", async (req, res) => {
 
     // 运行 hardhat 脚本
     const deployCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-    const child = execa(deployCmd, [
-      "hardhat", "run", "deploy/01_deploy_from_yaml.ts",
-      "--network", "baseSepolia"
-    ], {
-      cwd: workDir,
-      env: { ...process.env, TOKEN_CONFIG: tmpPath },
-    });
+	const child = execa(
+	  process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+	  ["run", "deploy:yaml"],
+	  {
+		cwd: workDir,
+		env: { ...process.env, TOKEN_CONFIG: tmpPath }
+	  }
+	);
 
     let stdout = "";
     child.stdout?.on("data", (b) => { stdout += String(b); });
