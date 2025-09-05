@@ -8,6 +8,11 @@ import { dirname } from "path";
 import fs from "fs";
 import yaml from "js-yaml";
 import { fileURLToPath } from 'url';
+import { store } from "./store";
+import { ethers } from "ethers";
+import crypto from "crypto";
+
+store.init();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -91,4 +96,69 @@ app.post("/api/tokens/deploy", async (req, res) => {
 const port = process.env.API_PORT ? Number(process.env.API_PORT) : 3100;
 app.listen(port, () => {
   console.log(`api listening on :${port}`);
+});
+
+
+
+// 基础 provider, 读链上信息
+const provider = new ethers.JsonRpcProvider(process.env.RPC_BASE_SEPOLIA);
+
+// 1) 注册一个新代币(也可在部署成功后由 /api/tokens/deploy 自动调用)
+app.post("/api/registry/add", (req, res) => {
+  try {
+    const { token, restrictor, chainId = 84532 } = req.body || {};
+    if (!token) return res.status(400).json({ ok: false, error: "token_required" });
+    store.addToken({ token, restrictor, chainId, createdAt: Date.now() });
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+// 2) 获取代币列表
+app.get("/api/tokens", (_req, res) => {
+  return res.json({ ok: true, data: store.listTokens() });
+});
+
+// 3) 获取代币详情(链上 + 注册表)
+app.get("/api/tokens/:address", async (req, res) => {
+  try {
+    const address = req.params.address;
+    const erc20 = new ethers.Contract(address, [
+      "function name() view returns (string)",
+      "function symbol() view returns (string)",
+      "function decimals() view returns (uint8)",
+      "function totalSupply() view returns (uint256)",
+      "function balanceOf(address) view returns (uint256)"
+    ], provider);
+    const [name, symbol, decimals, totalSupply] = await Promise.all([
+      erc20.name(), erc20.symbol(), erc20.decimals(), erc20.totalSupply()
+    ]);
+    const reg = store.listTokens().find(t => t.token.toLowerCase() === address.toLowerCase());
+    return res.json({ ok: true, data: { address, name, symbol, decimals, totalSupply: totalSupply.toString(), registry: reg } });
+  } catch (e: any) {
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+
+
+app.post("/api/purchase-intents", (req, res) => {
+  try {
+    const { token, buyer, amount } = req.body || {};
+    if (!token || !buyer || !amount) return res.status(400).json({ ok: false, error: "missing_fields" });
+    const id = crypto.randomUUID();
+    store.addIntent({ id, token, buyer, amount, status: "pending", createdAt: Date.now() });
+    return res.json({ ok: true, id });
+  } catch (e: any) {
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+// 可选: 按 buyer 或 token 查询意向
+app.get("/api/purchase-intents", (req, res) => {
+  const all = store.listIntents();
+  const { buyer, token } = req.query as any;
+  const data = all.filter(x => (!buyer || x.buyer.toLowerCase() === String(buyer).toLowerCase()) && (!token || x.token.toLowerCase() === String(token).toLowerCase()));
+  return res.json({ ok: true, data });
 });
