@@ -1,3 +1,5 @@
+*.sw[a-z]
+.[a-z]*/
 # Node / pnpm
 node_modules/
 pnpm-lock.yaml
