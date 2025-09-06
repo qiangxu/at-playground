@@ -1,4 +1,4 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import { z } from "zod";
@@ -13,6 +13,11 @@ import { ethers } from "ethers";
 import crypto from "crypto";
 
 store.init();
+dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
+if (!process.env.RPC_BASE_SEPOLIA) {
+  throw new Error("RPC_BASE_SEPOLIA missing, check lego02/.env");
+}
+console.log("api using RPC_BASE_SEPOLIA:", process.env.RPC_BASE_SEPOLIA.slice(0, 40) + "...");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -103,6 +108,17 @@ app.listen(port, () => {
 // 基础 provider, 读链上信息
 const provider = new ethers.JsonRpcProvider(process.env.RPC_BASE_SEPOLIA);
 
+app.get("/api/network/chainId", async (_req, res) => {
+  
+  try {
+    const net = await provider.getNetwork();
+    return res.json({ ok: true, chainId: Number(net.chainId) });
+  } catch (e:any) {
+    console.log(e.message);
+    return res.status(500).json({ ok:false, error: e.message });
+  }
+});
+
 // 1) 注册一个新代币(也可在部署成功后由 /api/tokens/deploy 自动调用)
 app.post("/api/registry/add", (req, res) => {
   try {
@@ -119,6 +135,7 @@ app.post("/api/registry/add", (req, res) => {
 app.get("/api/tokens", (_req, res) => {
   return res.json({ ok: true, data: store.listTokens() });
 });
+
 
 // 3) 获取代币详情(链上 + 注册表)
 app.get("/api/tokens/:address", async (req, res) => {

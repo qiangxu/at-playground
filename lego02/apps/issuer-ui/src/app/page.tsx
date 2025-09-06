@@ -191,7 +191,29 @@ export default function Page() {
               <div>restrictor: <a target="_blank" className="underline" href={`https://sepolia.basescan.org/address/${addr.restrictor}`}>{addr.restrictor}</a></div>
             </div>
           )}
-
+          {addr.token && (
+            <div className="flex gap-2">
+              <button
+                className="px-3 py-2 border rounded"
+                onClick={async () => {
+                  const body = {
+                    token: addr.token,
+                    restrictor: addr.restrictor,
+                    chainId: await fetch(`${process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3100"}/api/network/chainId`).then(r => r.json()).then(d => d.chainId).catch(() => undefined)
+                  };
+                  const r = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3100"}/api/registry/add`, {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify(body)
+                  });
+                  const d = await r.json();
+                  alert(d.ok ? "已提交审核并注册到 registry" : `失败: ${d.error}`);
+                }}
+              >
+                审核提交并注册
+              </button>
+            </div>
+          )}
           <h2 className="font-semibold">日志</h2>
           <pre className="text-xs bg-gray-900 text-green-100 p-3 rounded overflow-auto h-64">{logs}</pre>
         </div>
