@@ -11,8 +11,10 @@ import { fileURLToPath } from 'url';
 import { store } from "./store.js";
 import { ethers } from "ethers";
 import crypto from "crypto";
-
+import { ob, OrderRow } from "./orderbook";
+ob.init();
 store.init();
+
 dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
 if (!process.env.RPC_BASE_SEPOLIA) {
   throw new Error("RPC_BASE_SEPOLIA missing, check lego02/.env");
@@ -57,6 +59,7 @@ function parseBodyToConfig(body: any, contentType?: string) {
   return ConfigSchema.parse(body);
 }
 
+
 app.post("/api/tokens/deploy", async (req, res) => {
   try {
     const cfg = parseBodyToConfig(req.body, req.headers["content-type"] as string);
@@ -69,14 +72,14 @@ app.post("/api/tokens/deploy", async (req, res) => {
 
     // 运行 hardhat 脚本
     const deployCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-	const child = execa(
-	  process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-	  ["run", "deploy:yaml"],
-	  {
-		cwd: workDir,
-		env: { ...process.env, TOKEN_CONFIG: tmpPath }
-	  }
-	);
+    const child = execa(
+      process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+      ["run", "deploy:yaml"],
+      {
+        cwd: workDir,
+        env: { ...process.env, TOKEN_CONFIG: tmpPath }
+      }
+    );
 
     let stdout = "";
     child.stdout?.on("data", (b) => { stdout += String(b); });
@@ -109,13 +112,13 @@ app.listen(port, () => {
 const provider = new ethers.JsonRpcProvider(process.env.RPC_BASE_SEPOLIA);
 
 app.get("/api/network/chainId", async (_req, res) => {
-  
+
   try {
     const net = await provider.getNetwork();
     return res.json({ ok: true, chainId: Number(net.chainId) });
-  } catch (e:any) {
+  } catch (e: any) {
     console.log(e.message);
-    return res.status(500).json({ ok:false, error: e.message });
+    return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
@@ -177,5 +180,91 @@ app.get("/api/purchase-intents", (req, res) => {
   const all = store.listIntents();
   const { buyer, token } = req.query as any;
   const data = all.filter(x => (!buyer || x.buyer.toLowerCase() === String(buyer).toLowerCase()) && (!token || x.token.toLowerCase() === String(token).toLowerCase()));
+  return res.json({ ok: true, data });
+});
+
+
+// 1) 提交挂单
+app.post("/api/orders", (req, res) => {
+  try {
+    const { token, owner, side, price, amount } = req.body || {};
+    if (!token || !owner || !side || !price || !amount) return res.status(400).json({ ok: false, error: "missing_fields" });
+    if (!(side === "buy" || side === "sell")) return res.status(400).json({ ok: false, error: "invalid_side" });
+    const id = crypto.randomUUID();
+    const row: OrderRow = { id, token, owner, side, price: String(price), amount: String(amount), filled: "0", status: "open", createdAt: Date.now() };
+    ob.putOrder(row);
+    return res.json({ ok: true, id });
+  } catch (e: any) {
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+// 2) 查询某 token 的 orderbook
+app.get("/api/orderbook", (req, res) => {
+  const token = String(req.query.token || "").toLowerCase();
+  if (!token) return res.status(400).json({ ok: false, error: "token_required" });
+  const all = ob.listOrders().filter(x => x.token.toLowerCase() === token && (x.status === "open" || x.status === "partial"));
+  const buys = [...all.filter(x => x.side === "buy")].sort((a, b) => Number(b.price) - Number(a.price));
+  const sells = [...all.filter(x => x.side === "sell")].sort((a, b) => Number(a.price) - Number(b.price));
+  return res.json({ ok: true, data: { buys, sells } });
+});
+
+
+// 3) 接单, 支持部分成交
+app.post("/api/orders/:id/accept", (req, res) => {
+  try {
+    const id = req.params.id;
+    const { taker, amount } = req.body || {};
+    if (!taker) return res.status(400).json({ ok: false, error: "taker_required" });
+    const o = ob.getOrder(id);
+    if (!o) return res.status(404).json({ ok: false, error: "order_not_found" });
+    if (o.status === "filled" || o.status === "cancelled") return res.status(400).json({ ok: false, error: "order_closed" });
+
+
+    const remaining = BigInt(o.amount) - BigInt(o.filled);
+    const fill = amount ? BigInt(amount) : remaining;
+    if (fill <= 0n) return res.status(400).json({ ok: false, error: "invalid_amount" });
+    if (fill > remaining) return res.status(400).json({ ok: false, error: "exceed_remaining" });
+
+
+    const newFilled = (BigInt(o.filled) + fill).toString();
+    const newStatus = (BigInt(newFilled) === BigInt(o.amount)) ? "filled" : "partial";
+
+
+    ob.updateOrder(id, { filled: newFilled, status: newStatus });
+
+
+    ob.putTrade({ id: crypto.randomUUID(), orderId: id, token: o.token, price: o.price, amount: fill.toString(), maker: o.owner, taker, createdAt: Date.now() });
+
+
+    return res.json({ ok: true, filled: fill.toString(), status: newStatus });
+  } catch (e: any) {
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+
+// 4) 取消挂单
+app.post("/api/orders/:id/cancel", (req, res) => {
+  try {
+    const id = req.params.id;
+    const { owner } = req.body || {};
+    const o = ob.getOrder(id);
+    if (!o) return res.status(404).json({ ok: false, error: "order_not_found" });
+    if (o.owner.toLowerCase() !== String(owner || "").toLowerCase()) return res.status(403).json({ ok: false, error: "forbidden" });
+    if (o.status === "filled" || o.status === "cancelled") return res.status(400).json({ ok: false, error: "order_closed" });
+    ob.updateOrder(id, { status: "cancelled" });
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+
+// 5) 成交记录查询
+app.get("/api/trades", (req, res) => {
+  const token = String(req.query.token || "");
+  const all = ob.listTrades();
+  const data = token ? all.filter(x => x.token.toLowerCase() === token.toLowerCase()) : all;
   return res.json({ ok: true, data });
 });

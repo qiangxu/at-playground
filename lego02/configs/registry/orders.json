@@ -1,0 +1,13 @@
+[
+  {
+    "id": "9e11886c-67d1-4f8b-b277-6e54536cc822",
+    "token": "0xYourToken",
+    "owner": "0xAlice",
+    "side": "sell",
+    "price": "100",
+    "amount": "1000000000000000000",
+    "filled": "0",
+    "status": "open",
+    "createdAt": 1757266062021
+  }
+]
