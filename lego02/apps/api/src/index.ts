@@ -152,7 +152,7 @@ app.get("/api/tokens/:address", async (req, res) => {
       erc20.name(), erc20.symbol(), erc20.decimals(), erc20.totalSupply()
     ]);
     const reg = store.listTokens().find(t => t.token.toLowerCase() === address.toLowerCase());
-    return res.json({ ok: true, data: { address, name, symbol, decimals, totalSupply: totalSupply.toString(), registry: reg } });
+    return res.json({ ok: true, data: { address, name, symbol, decimals: Number(decimals), totalSupply: totalSupply.toString(), registry: reg } });
   } catch (e: any) {
     return res.status(400).json({ ok: false, error: e.message });
   }
