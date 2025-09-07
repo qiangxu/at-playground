@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useReadContract, useDisconnect } from "wagmi";
 import yaml from "js-yaml";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3100";
@@ -17,12 +17,18 @@ const erc20 = [
 
 function Connect() {
   const { address, status } = useAccount();
+  const { disconnect } = useDisconnect();
   const [trying, setTrying] = useState(false);
   const doConnect = async () => {
     setTrying(true);
     try { await (window as any).ethereum?.request({ method: "eth_requestAccounts" }); } finally { setTrying(false); }
   };
-  if (status === "connected") return <div className="text-sm">已连接: {address}</div>;
+  if (status === "connected") return (
+    <div className="flex items-center gap-4">
+      <div className="text-sm">已连接: {address}</div>
+      <button className="px-3 py-2 border rounded text-sm" onClick={() => disconnect()}>断开连接</button>
+    </div>
+  );
   return <button className="px-3 py-2 border rounded" onClick={doConnect} disabled={trying}>{trying?"连接中...":"连接钱包"}</button>;
 }
 

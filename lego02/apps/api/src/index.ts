@@ -8,7 +8,7 @@ import { dirname } from "path";
 import fs from "fs";
 import yaml from "js-yaml";
 import { fileURLToPath } from 'url';
-import { store } from "./store";
+import { store } from "./store.js";
 import { ethers } from "ethers";
 import crypto from "crypto";
 
