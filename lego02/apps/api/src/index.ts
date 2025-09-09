@@ -123,10 +123,16 @@ app.get("/api/network/chainId", async (_req, res) => {
 });
 
 // 1) 注册一个新代币(也可在部署成功后由 /api/tokens/deploy 自动调用)
-app.post("/api/registry/add", (req, res) => {
+app.post("/api/registry/add", async (req, res) => {
   try {
-    const { token, restrictor, chainId = 84532 } = req.body || {};
-    if (!token) return res.status(400).json({ ok: false, error: "token_required" });
+    let { token, restrictor, chainId } = req.body || {};
+    if (!token) throw new Error("token is required");
+
+    if (!chainId) {
+      const net = await provider.getNetwork();
+      chainId = Number(net.chainId);
+    }
+
     store.addToken({ token, restrictor, chainId, createdAt: Date.now() });
     return res.json({ ok: true });
   } catch (e: any) {

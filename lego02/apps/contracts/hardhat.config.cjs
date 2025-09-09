@@ -18,7 +18,6 @@ module.exports = {
         hardhat: {},
         baseSepolia: {
             url: process.env.RPC_BASE_SEPOLIA || "",
-            chainId: 84532,
             accounts: PK ? ["0x" + PK] : []
         }
     }
