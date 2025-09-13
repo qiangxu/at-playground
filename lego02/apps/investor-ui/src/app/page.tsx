@@ -60,7 +60,13 @@ function TokenCard({ row, me }: { row: TokenRow, me?: string }) {
   const { data: bal } = useReadContract({ address: row.token as `0x${string}`, abi: erc20 as any, functionName: "balanceOf", args: me ? [me as `0x${string}`] : undefined, query: { enabled: !!me } });
 
   const [amount, setAmount] = useState("");
-  const submitIntent = async () => { /* 保持 M2 购买意向的按钮不变 */ };
+  const submitIntent = async () => {
+    const body = { token: row.token, buyer: me, amount };
+    const r = await fetch(`${apiBase}/api/purchase-intents`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json();
+    alert(d.ok?`已提交意向: ${d.id}`:`失败: ${d.error}`);
+  }; 
+    
 
   // M3 orderbook
   const [ob, setOb] = useState<OrderbookResp["data"]>({ buys: [], sells: [] });
