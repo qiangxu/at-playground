@@ -61,17 +61,21 @@ function parseBodyToConfig(body: any, contentType?: string) {
 
 
 app.post("/api/tokens/deploy", async (req, res) => {
+  console.log(`[API] Received POST /api/tokens/deploy`);
   try {
     const cfg = parseBodyToConfig(req.body, req.headers["content-type"] as string);
+    console.log(`[API] Deploying token: ${cfg.name} (${cfg.symbol})`);
     // 写临时 yaml 供 hardhat 脚本消费
     const workDir = path.resolve(__dirname, "../../contracts");
     const tmpDir = path.resolve(workDir, ".tmp");
     fs.mkdirSync(tmpDir, { recursive: true });
     const tmpPath = path.join(tmpDir, `token.config.${Date.now()}.yaml`);
     fs.writeFileSync(tmpPath, yaml.dump(cfg), "utf8");
+    console.log(`[API] Wrote token config to ${tmpPath}`);
 
     // 运行 hardhat 脚本
     const deployCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+    console.log(`[API] Executing: ${deployCmd} run deploy:yaml in ${workDir}`);
     const child = execa(
       process.platform === "win32" ? "pnpm.cmd" : "pnpm",
       ["run", "deploy:yaml"],
@@ -88,15 +92,18 @@ app.post("/api/tokens/deploy", async (req, res) => {
 
     const { exitCode } = await child;
     if (exitCode !== 0) {
+      console.error(`[API] Deploy failed. exitCode: ${exitCode}, stderr: ${stderr}`);
       return res.status(500).json({ ok: false, error: "deploy_failed", stdout, stderr });
     }
 
     // 从日志解析地址
     const restrictor = /restrictor:\s*(0x[a-fA-F0-9]{40})/i.exec(stdout)?.[1] || "";
     const token = /token:\s*(0x[a-fA-F0-9]{40})/i.exec(stdout)?.[1] || "";
+    console.log(`[API] Deploy successful. Token: ${token}, Restrictor: ${restrictor}`);
 
     return res.json({ ok: true, token, restrictor, stdout });
   } catch (e: any) {
+    console.error(`[API] Error in /api/tokens/deploy: ${e.message}`);
     return res.status(400).json({ ok: false, error: e.message });
   }
 });
@@ -124,6 +131,7 @@ app.get("/api/network/chainId", async (_req, res) => {
 
 // 1) 注册一个新代币(也可在部署成功后由 /api/tokens/deploy 自动调用)
 app.post("/api/registry/add", async (req, res) => {
+  console.log(`[API] Received POST /api/registry/add`, req.body);
   try {
     let { token, restrictor, chainId } = req.body || {};
     if (!token) throw new Error("token is required");
@@ -134,8 +142,10 @@ app.post("/api/registry/add", async (req, res) => {
     }
 
     store.addToken({ token, restrictor, chainId, createdAt: Date.now() });
+    console.log(`[API] Added token ${token} to registry on chainId ${chainId}`);
     return res.json({ ok: true });
   } catch (e: any) {
+    console.error(`[API] Error in /api/registry/add: ${e.message}`);
     return res.status(400).json({ ok: false, error: e.message });
   }
 });
@@ -148,6 +158,7 @@ app.get("/api/tokens", (_req, res) => {
 
 // 3) 获取代币详情(链上 + 注册表)
 app.get("/api/tokens/:address", async (req, res) => {
+  console.log(`[API] Received GET /api/tokens/${req.params.address}`);
   try {
     const address = req.params.address;
     const erc20 = new ethers.Contract(address, [
@@ -163,6 +174,7 @@ app.get("/api/tokens/:address", async (req, res) => {
     const reg = store.listTokens().find(t => t.token.toLowerCase() === address.toLowerCase());
     return res.json({ ok: true, data: { address, name, symbol, decimals: Number(decimals), totalSupply: totalSupply.toString(), registry: reg } });
   } catch (e: any) {
+    console.error(`[API] Error in /api/tokens/:address: ${e.message}`);
     return res.status(400).json({ ok: false, error: e.message });
   }
 });
@@ -170,13 +182,16 @@ app.get("/api/tokens/:address", async (req, res) => {
 
 
 app.post("/api/purchase-intents", (req, res) => {
+  console.log(`[API] Received POST /api/purchase-intents`, req.body);
   try {
     const { token, buyer, amount } = req.body || {};
     if (!token || !buyer || !amount) return res.status(400).json({ ok: false, error: "missing_fields" });
     const id = crypto.randomUUID();
     store.addIntent({ id, token, buyer, amount, status: "pending", createdAt: Date.now() });
+    console.log(`[API] Created purchase intent ${id} for token ${token}`);
     return res.json({ ok: true, id });
   } catch (e: any) {
+    console.error(`[API] Error in /api/purchase-intents: ${e.message}`);
     return res.status(400).json({ ok: false, error: e.message });
   }
 });
@@ -192,6 +207,7 @@ app.get("/api/purchase-intents", (req, res) => {
 
 // 1) 提交挂单
 app.post("/api/orders", (req, res) => {
+  console.log(`[API] Received POST /api/orders`, req.body);
   try {
     const { token, owner, side, price, amount } = req.body || {};
     if (!token || !owner || !side || !price || !amount) return res.status(400).json({ ok: false, error: "missing_fields" });
@@ -199,8 +215,10 @@ app.post("/api/orders", (req, res) => {
     const id = crypto.randomUUID();
     const row: OrderRow = { id, token, owner, side, price: String(price), amount: String(amount), filled: "0", status: "open", createdAt: Date.now() };
     ob.putOrder(row);
+    console.log(`[API] Placed order ${id}: ${side} ${amount} ${token} @ ${price} by ${owner}`);
     return res.json({ ok: true, id });
   } catch (e: any) {
+    console.error(`[API] Error in /api/orders: ${e.message}`);
     return res.status(400).json({ ok: false, error: e.message });
   }
 });
@@ -218,6 +236,7 @@ app.get("/api/orderbook", (req, res) => {
 
 // 3) 接单, 支持部分成交
 app.post("/api/orders/:id/accept", (req, res) => {
+  console.log(`[API] Received POST /api/orders/${req.params.id}/accept`, req.body);
   try {
     const id = req.params.id;
     const { taker, amount } = req.body || {};
@@ -242,9 +261,10 @@ app.post("/api/orders/:id/accept", (req, res) => {
 
     ob.putTrade({ id: crypto.randomUUID(), orderId: id, token: o.token, price: o.price, amount: fill.toString(), maker: o.owner, taker, createdAt: Date.now() });
 
-
+    console.log(`[API] Accepted order ${id} by ${taker}, amount: ${fill.toString()}. New status: ${newStatus}`);
     return res.json({ ok: true, filled: fill.toString(), status: newStatus });
   } catch (e: any) {
+    console.error(`[API] Error in /api/orders/:id/accept: ${e.message}`);
     return res.status(400).json({ ok: false, error: e.message });
   }
 });
@@ -252,6 +272,7 @@ app.post("/api/orders/:id/accept", (req, res) => {
 
 // 4) 取消挂单
 app.post("/api/orders/:id/cancel", (req, res) => {
+  console.log(`[API] Received POST /api/orders/${req.params.id}/cancel`, req.body);
   try {
     const id = req.params.id;
     const { owner } = req.body || {};
@@ -260,8 +281,10 @@ app.post("/api/orders/:id/cancel", (req, res) => {
     if (o.owner.toLowerCase() !== String(owner || "").toLowerCase()) return res.status(403).json({ ok: false, error: "forbidden" });
     if (o.status === "filled" || o.status === "cancelled") return res.status(400).json({ ok: false, error: "order_closed" });
     ob.updateOrder(id, { status: "cancelled" });
+    console.log(`[API] Cancelled order ${id} by ${owner}`);
     return res.json({ ok: true });
   } catch (e: any) {
+    console.error(`[API] Error in /api/orders/:id/cancel: ${e.message}`);
     return res.status(400).json({ ok: false, error: e.message });
   }
 });
