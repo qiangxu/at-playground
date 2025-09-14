@@ -59,6 +59,35 @@ function parseBodyToConfig(body: any, contentType?: string) {
   return ConfigSchema.parse(body);
 }
 
+app.post("/api/orders/signed", async (req, res) => {
+  try {
+    const { value, sig } = req.body || {};
+    if (!value || !sig) return res.status(400).json({ ok: false, error: "missing" });
+
+    const domain = { name: "PlaygroundOrder", version: "1", chainId: Number((await provider.getNetwork()).chainId), verifyingContract: process.env.ESCROW_ADDRESS };
+    const types = { Order: [
+      { name: "token", type: "address" },
+      { name: "owner", type: "address" },
+      { name: "side", type: "uint8" },
+      { name: "price", type: "uint256" },
+      { name: "amount", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "expiry", type: "uint256" }
+    ]};
+
+    const digest = ethers.TypedDataEncoder.hash(domain, types as any, value);
+    const recovered = ethers.verifyTypedData(domain as any, types as any, value, sig);
+    if (recovered.toLowerCase() !== String(value.owner).toLowerCase()) return res.status(400).json({ ok: false, error: "bad_sig" });
+    if (Date.now()/1000 > Number(value.expiry)) return res.status(400).json({ ok: false, error: "expired" });
+
+    // 入簿: 兼容 M3 的 ob.putOrder
+    const id = crypto.randomUUID();
+    ob.putOrder({ id, token: value.token, owner: value.owner, side: value.side===0?"buy":"sell", price: String(value.price), amount: String(value.amount), filled: "0", status: "open", createdAt: Date.now() });
+    return res.json({ ok: true, id });
+  } catch (e:any) {
+    return res.status(400).json({ ok:false, error: e.message });
+  }
+});
 
 app.post("/api/tokens/deploy", async (req, res) => {
   console.log(`[API] Received POST /api/tokens/deploy`);

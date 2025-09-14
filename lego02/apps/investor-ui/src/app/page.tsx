@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAccount, useReadContract, useDisconnect } from "wagmi";
+import { useAccount, useReadContract, useDisconnect, useChainId } from "wagmi";
 import yaml from "js-yaml";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3100";
@@ -54,6 +54,7 @@ export default function Page() {
 }
 
 function TokenCard({ row, me }: { row: TokenRow, me?: string }) {
+  const chainId = useChainId();
   const [meta, setMeta] = useState<any>({});
   useEffect(() => { fetch(`${apiBase}/api/tokens/${row.token}`).then(r=>r.json()).then(d=>setMeta(d.data||{})); }, [row.token]);
 
@@ -78,11 +79,41 @@ function TokenCard({ row, me }: { row: TokenRow, me?: string }) {
   const [px, setPx] = useState("");
   const [qty, setQty] = useState("");
   const placeOrder = async () => {
-    const body = { token: row.token, owner: me, side, price: px, amount: qty };
-    const r = await fetch(`${apiBase}/api/orders`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const d = await r.json();
-    alert(d.ok ? `下单成功 id=${d.id}` : `失败: ${d.error}`);
-    refreshOb();
+    if (!me || !px || !qty) return;
+    try {
+      // TODO: The escrowAddress should be fetched from a config endpoint
+      const escrowAddress = "0x0000000000000000000000000000000000000000";
+      const domain = { name: "PlaygroundOrder", version: "1", chainId, verifyingContract: escrowAddress };
+      const types = { Order: [
+        { name: "token", type: "address" },
+        { name: "owner", type: "address" },
+        { name: "side", type: "uint8" },
+        { name: "price", type: "uint256" },
+        { name: "amount", type: "uint256" },
+        { name: "nonce", type: "uint256" },
+        { name: "expiry", type: "uint256" },
+      ]};
+      const value = { 
+        token: row.token, 
+        owner: me, 
+        side: side==="buy"?0:1, 
+        price: px, 
+        amount: qty, 
+        nonce: Date.now(), 
+        expiry: Math.floor(Date.now() / 1000) + 3600 // 1 hour expiry
+      };
+      const sig = await (window as any).ethereum.request({
+        method: "eth_signTypedData_v4",
+        params: [me, JSON.stringify({ domain, types, primaryType: "Order", message: value })]
+      });
+      
+      const r = await fetch(`${apiBase}/api/orders/signed`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ value, sig }) });
+      const d = await r.json();
+      alert(d.ok ? `下单成功 id=${d.id}` : `失败: ${d.error}`);
+      refreshOb();
+    } catch (e: any) {
+      alert(`签名或提交失败: ${e.message}`);
+    }
   };
 
   const accept = async (id: string, amt?: string) => {
