@@ -39,8 +39,8 @@
     "side": "buy",
     "price": "1",
     "amount": "10000000000000",
-    "filled": "0",
-    "status": "open",
+    "filled": "10000000000000",
+    "status": "filled",
     "createdAt": 1757780145050
   }
 ]

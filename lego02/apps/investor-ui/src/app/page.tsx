@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAccount, useReadContract, useDisconnect, useChainId } from "wagmi";
+import { useAccount, useReadContract, useDisconnect, useChainId, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import yaml from "js-yaml";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3100";
@@ -8,13 +8,19 @@ const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3100";
 type TokenRow = { token: string, restrictor?: string, chainId: number };
 type Order = { id: string, token: string, owner: string, side: "buy"|"sell", price: string, amount: string, filled: string, status: string };
 type OrderbookResp = { ok: boolean, data: { buys: Order[], sells: Order[] } };
+type IntentRow = { id: string, token: string, buyer: string, amount: string, status: "pending" | "approved" | "rejected", createdAt: number };
 
 const erc20 = [
   { name: "name", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "string" }]},
   { name: "symbol", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "string" }]},
   { name: "decimals", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }]},
   { name: "totalSupply", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }]},
-  { name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }]}
+  { name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }]},
+  { name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }]}
+] as const;
+
+const escrowAbi = [
+  { name: "take", type: "function", stateMutability: "payable", inputs: [{ name: "lotId", type: "bytes32" }, { name: "amount", type: "uint256" }], outputs: [] }
 ] as const;
 
 function Connect() {
@@ -55,6 +61,8 @@ export default function Page() {
 
 function TokenCard({ row, me }: { row: TokenRow, me?: string }) {
   const chainId = useChainId();
+  const { writeContractAsync } = useWriteContract();
+
   const [meta, setMeta] = useState<any>({});
   useEffect(() => { fetch(`${apiBase}/api/tokens/${row.token}`).then(r=>r.json()).then(d=>setMeta(d.data||{})); }, [row.token]);
 
@@ -117,12 +125,57 @@ function TokenCard({ row, me }: { row: TokenRow, me?: string }) {
   };
 
   const accept = async (id: string, amt?: string) => {
-    const body: any = { taker: me };
-    if (amt) body.amount = amt;
-    const r = await fetch(`${apiBase}/api/orders/${id}/accept`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const d = await r.json();
-    alert(d.ok ? `成交 ${d.filled}` : `失败: ${d.error}`);
-    refreshOb();
+    if (!me) return alert("请先连接钱包");
+    // TODO: The escrowAddress should be fetched from a config endpoint
+    const escrowAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // Example address, replace with your actual escrow contract address
+
+    try {
+      // 1. 调用后端 API 获取成交详情
+      const body: any = { taker: me };
+      if (amt) body.amount = amt;
+      const r = await fetch(`${apiBase}/api/orders/${id}/accept`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error);
+
+      alert(`后端成交成功，即将发起链上交易... \n成交数量: ${d.filled}`);
+      const { lotId, quote, payAmount, filled } = d;
+
+      // 2. 根据 quote 类型执行链上操作
+      if (quote === "0x0000000000000000000000000000000000000000") {
+        // 若 quote==address(0): 直接调用 escrow.take(lotId, amount, { value: payAmount })
+        await writeContractAsync({
+          address: escrowAddress,
+          abi: escrowAbi,
+          functionName: "take",
+          args: [lotId, BigInt(filled)],
+          value: BigInt(payAmount),
+        });
+      } else {
+        // 若为 ERC20: 先 approve, 再 take(lotId, amount)
+        // a) Approve
+        alert(`需要授权 ${payAmount} ${quote} 给 Escrow 合约`);
+        await writeContractAsync({
+          address: quote,
+          abi: erc20,
+          functionName: "approve",
+          args: [escrowAddress, BigInt(payAmount)],
+        });
+
+        // b) Take
+        alert(`授权成功，即将执行 take`);
+        await writeContractAsync({
+          address: escrowAddress,
+          abi: escrowAbi,
+          functionName: "take",
+          args: [lotId, BigInt(filled)],
+        });
+      }
+
+      alert("链上交易成功!");
+      refreshOb();
+    } catch (e: any) {
+      alert(`接单失败: ${e.message}`);
+    }
   };
 
   return (

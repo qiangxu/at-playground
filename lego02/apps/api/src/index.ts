@@ -291,7 +291,7 @@ app.post("/api/orders/:id/accept", (req, res) => {
     ob.putTrade({ id: crypto.randomUUID(), orderId: id, token: o.token, price: o.price, amount: fill.toString(), maker: o.owner, taker, createdAt: Date.now() });
 
     console.log(`[API] Accepted order ${id} by ${taker}, amount: ${fill.toString()}. New status: ${newStatus}`);
-    return res.json({ ok: true, filled: fill.toString(), status: newStatus });
+    return res.json({ ok: true, filled: fill.toString(), status: newStatus, lotId: o.lotId, quote: o.quote, payAmount: (BigInt(o.price)*fill).toString() });
   } catch (e: any) {
     console.error(`[API] Error in /api/orders/:id/accept: ${e.message}`);
     return res.status(400).json({ ok: false, error: e.message });

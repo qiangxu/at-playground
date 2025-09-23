@@ -15,15 +15,17 @@ function ensureFiles() {
 
 
 export type OrderRow = {
-    id: string,
-    token: string,
-    owner: string,
-    side: "buy" | "sell",
-    price: string, // 单价, 单位自定(演示用), 用字符串避免精度问题
-    amount: string, // 挂单总量
-    filled: string, // 已成交量
-    status: "open" | "partial" | "filled" | "cancelled",
-    createdAt: number
+  id: string,
+  token: string,
+  owner: string,
+  side: "buy" | "sell",
+  price: string,
+  amount: string,
+  filled: string,
+  status: "open" | "partial" | "filled" | "cancelled",
+  createdAt: number,
+  lotId?: number,
+  quote?: string
 }
 
 
