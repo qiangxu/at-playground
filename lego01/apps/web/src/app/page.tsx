@@ -1,32 +1,50 @@
-'use client'
+'use client';
 import { usePrivy } from '@privy-io/react-auth';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 
 export default function Home() {
   const { login, ready, authenticated, user, getAccessToken, logout } = usePrivy();
   const [accessToken, setAccessToken] = useState<string>('');
 
-  const onLogin = async () => {
-    await login();
-    const tok = await getAccessToken();
-    setAccessToken(tok || '');
-    if (tok) {
-      await api.post('/auth/privy', { idToken: tok });
-      const addr = user?.wallet?.address;
-      if (addr) await api.post('/wallets/register', { address: addr, provider: 'PRIVY', kind: 'EMBEDDED' });
-      alert('Login & wallet bind done');
-    }
-  };
+  // useEffect to handle logic after authentication state changes
+  useEffect(() => {
+    const handleLogin = async () => {
+      if (authenticated && user) {
+        const tok = await getAccessToken();
+        if (!tok) return;
+
+        setAccessToken(tok);
+
+        try {
+          // Step 1: Authenticate with your backend
+          await api.post('/auth/privy', { idToken: tok });
+
+          // Step 2: Register the user's wallet if it exists
+          const addr = user.wallet?.address;
+          if (addr) {
+            await api.post('/wallets/register', { address: addr, provider: 'PRIVY', kind: 'EMBEDDED' });
+          }
+          
+          alert('Login & wallet bind done');
+        } catch (error) {
+          console.error('API call failed:', error);
+          alert('An error occurred during login or wallet registration.');
+        }
+      }
+    };
+
+    handleLogin();
+  }, [authenticated, user, getAccessToken]); // Dependencies ensure this runs when auth state is updated
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>RH Playground</h1>
+      <h1>AT Playground</h1>
       {!authenticated ? (
-        <button onClick={onLogin} disabled={!ready}>Login with Privy</button>
+        <button onClick={login} disabled={!ready}>Login with Privy</button>
       ) : (
         <>
-          <p>Address: {user?.wallet?.address}</p>
+          <div>Address: {user?.wallet?.address}</div>
           <button onClick={() => logout()}>Logout</button>
         </>
       )}

@@ -1,25 +1,30 @@
 {
-  "name": "web",
+  "name": "@lego01/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "pnpm exec dotenv -e ../../../.env -e ../../.env -- sh -c 'echo \"hi\" $PORT'",
+    "dev:ssl": "pnpm exec dotenv -e ../../../.env -e ../../.env -- sh -c 'concurrently --names \"HTTP,HTTPS\" -c \"bgBlue.bold,bgMagenta.bold\" \"pnpm:dev:http\" \"pnpm:dev:https\"'",
+    "dev:http": "next dev -p $PORT",
+    "dev:https": "local-ssl-proxy --source $HTTPS_PORT --target $PORT",
+    "build": "pnpm exec dotenv -e ../../../.env -e ../../.env -- next build",
+    "start": "pnpm exec dotenv -e ../../../.env -e ../../.env -- next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "next": "15.5.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.5.0"
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "15.5.0",
-    "@eslint/eslintrc": "^3"
+    "local-ssl-proxy": "^2.0.5",
+    "typescript": "^5"
   }
 }
