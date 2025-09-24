@@ -61,7 +61,7 @@ export default function Page() {
 
   const onUploadYaml = async (file: File) => {
     const txt = await file.text();
-    const obj = yaml.load(txt) as any;
+    const obj = yaml.load(txt) as unknown;
     const parsed = Schema.parse(obj);
     setForm(parsed as Cfg);
     setMintersStr(parsed.roles?.minters?.join(",") || "");
@@ -81,8 +81,12 @@ export default function Page() {
       const data = await res.json();
       setLogs(data.stdout || JSON.stringify(data, null, 2));
       setAddr({ token: data.token, restrictor: data.restrictor });
-    } catch (e: any) {
-      setLogs(String(e?.message || e));
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'message' in e) {
+        setLogs(String((e as { message?: string }).message));
+      } else {
+        setLogs(String(e));
+      }
     }
   };
 
@@ -181,7 +185,7 @@ export default function Page() {
         <div className="space-y-3">
           <h2 className="font-semibold">预览</h2>
           <pre className="text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-auto h-72">
-            {yaml.dump(form as any)}
+            {yaml.dump(form as unknown)}
           </pre>
 
           <h2 className="font-semibold">结果</h2>

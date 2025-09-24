@@ -63,7 +63,7 @@ function TokenCard({ row, me }: { row: TokenRow, me?: string }) {
   const chainId = useChainId();
   const { writeContractAsync } = useWriteContract();
 
-  const [meta, setMeta] = useState<any>({});
+  const [meta, setMeta] = useState<Record<string, unknown>>({});
   useEffect(() => { fetch(`${apiBase}/api/tokens/${row.token}`).then(r=>r.json()).then(d=>setMeta(d.data||{})); }, [row.token]);
 
   const { data: bal } = useReadContract({ address: row.token as `0x${string}`, abi: erc20 as any, functionName: "balanceOf", args: me ? [me as `0x${string}`] : undefined, query: { enabled: !!me } });
