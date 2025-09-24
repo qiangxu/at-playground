@@ -1,5 +1,5 @@
 {
-  "name": "db",
+  "name": "@at/db",
   "version": "1.0.0",
   "private": true,
   "main": "index.js",
@@ -9,9 +9,9 @@
     "prisma:migrate": "prisma migrate dev"
   },
   "dependencies": {
-    "@prisma/client": "^5.0.0"
+    "@prisma/client": "^6.16.2"
   },
   "devDependencies": {
-    "prisma": "^5.0.0"
+    "prisma": "^6.16.2"
   }
 }
