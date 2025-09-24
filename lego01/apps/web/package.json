@@ -3,10 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm exec dotenv -e ../../../.env -e ../../.env -- sh -c 'echo \"hi\" $PORT'",
-    "dev:ssl": "pnpm exec dotenv -e ../../../.env -e ../../.env -- sh -c 'concurrently --names \"HTTP,HTTPS\" -c \"bgBlue.bold,bgMagenta.bold\" \"pnpm:dev:http\" \"pnpm:dev:https\"'",
-    "dev:http": "next dev -p $PORT",
-    "dev:https": "local-ssl-proxy --source $HTTPS_PORT --target $PORT",
+    "dev:ssl": "pnpm exec dotenv -e ../../../.env -e ../../.env -- sh -c 'concurrently --names \"WEB,PROXY\" -c \"bgBlue.bold,bgMagenta.bold\" \"pnpm:dev:web\" \"pnpm:dev:proxy\"'",
+    "dev:web": "next dev -p $WEB_PORT",
+    "dev:proxy": "local-ssl-proxy --source $SSL_PORT --target $WEB_PORT",
     "build": "pnpm exec dotenv -e ../../../.env -e ../../.env -- next build",
     "start": "pnpm exec dotenv -e ../../../.env -e ../../.env -- next start",
     "lint": "eslint"

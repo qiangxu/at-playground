@@ -17,8 +17,10 @@ export default function Home() {
         setAccessToken(tok);
 
         try {
+          console.log('[WEB] 准备发送 /auth/privy 请求，token:', tok ? '存在' : '不存在');
           // Step 1: Authenticate with your backend
           await api.post('/auth/privy', { idToken: tok });
+          console.log('[WEB] /auth/privy 请求发送成功！');
 
           // Step 2: Register the user's wallet if it exists
           const addr = user.wallet?.address;
@@ -28,7 +30,7 @@ export default function Home() {
           
           alert('Login & wallet bind done');
         } catch (error) {
-          console.error('API call failed:', error);
+          console.error('[WEB] API 调用失败:', error); 
           alert('An error occurred during login or wallet registration.');
         }
       }
