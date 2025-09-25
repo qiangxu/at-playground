@@ -5,10 +5,13 @@ import { RedisService } from '../../infra/redis.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import jwkToPem from 'jwk-to-pem';
+import { PassportModule } from '@nestjs/passport';
+import { JwtStrategy } from './jwt.strategy';
 
 @Module({
   imports: [
     ConfigModule, // 确保 ConfigModule 可用
+    PassportModule, // <-- 注册 Passport
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -33,6 +36,6 @@ import jwkToPem from 'jwk-to-pem';
     }),
   ],
   controllers: [AuthController],
-  providers: [PrismaService, RedisService],
+  providers: [PrismaService, RedisService, JwtStrategy], // <-- 注册我们的新策略
 })
 export class AuthModule {}

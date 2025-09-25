@@ -1,7 +1,7 @@
 'use client';
 import { usePrivy } from '@privy-io/react-auth';
 import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
+import { api, setAuthToken } from '@/lib/api';
 
 export default function Home() {
   const { login, ready, authenticated, user, getAccessToken, logout } = usePrivy();
@@ -21,16 +21,25 @@ export default function Home() {
 
         try {
           console.log('[WEB] 准备发送 /auth/privy 请求...');
-          // Step 1: Authenticate with your backend, now sending email as well
-          await api.post('/auth/privy', { 
+          // Step 1: Authenticate and get the session token
+          const authResponse = await api.post('/auth/privy', { 
             idToken: tok,
-            email: user.email?.address, // <-- 新增：将 email 一起发送
+            email: user.email?.address,
           });
-          console.log('[WEB] /auth/privy 请求发送成功！');
 
-          // Step 2: Register the user's wallet if it exists
+          // NEW: Store the session token for future requests
+          const sessionToken = authResponse.data.token;
+          if (sessionToken) {
+            setAuthToken(sessionToken);
+            console.log('[WEB] Session token has been set for subsequent requests.');
+          } else {
+            console.warn('[WEB] Login successful, but no session token received.');
+          }
+
+          // Step 2: Register wallet (this request will now be authenticated)
           const addr = user.wallet?.address;
           if (addr) {
+            console.log('[WEB] 准备发送 /wallet/register请求，addr:', addr);
             await api.post('/wallets/register', { address: addr, provider: 'PRIVY', kind: 'EMBEDDED' });
           }
           

@@ -1,19 +1,34 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards, Request } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // <-- 导入守卫
 
 @Controller('wallets')
 export class WalletsController {
   constructor(private prisma: PrismaService) {}
 
   @Post('register')
-  async register(@Req() req: any, @Body() dto: { address: string; provider: 'PRIVY'|'SIWE'|'SAFE'|'OTHER'; kind: 'EMBEDDED'|'EXTERN'|'SAFE'|'AA'; }) {
-    const accountId = req.user?.sub || req.accountId || (await this.prisma.account.findFirstOrThrow()).id; // Demo: 替换为 JWT Guard
-    await this.prisma.wallet.upsert({
+  @UseGuards(JwtAuthGuard) // <-- 应用守卫！此接口现在受到保护
+  async register(
+    @Body() dto: { address: string; provider: string; kind: string },
+    @Request() req, // <-- 获取请求对象
+  ) {
+    // 从守卫附加的 user 对象中获取 accountId
+    const accountId = req.user.accountId;
+
+    const wallet = await this.prisma.wallet.upsert({
       where: { address: dto.address },
-      update: { provider: dto.provider as any, kind: dto.kind as any, accountId },
-      create: { accountId, address: dto.address, provider: dto.provider as any, kind: dto.kind as any },
+      create: {
+        address: dto.address,
+        provider: dto.provider as any, // Cast to WalletProvider if you trust the input, or use proper enum conversion
+        kind: dto.kind as any,
+        accountId: accountId, // <-- 关联到当前登录的用户
+      },
+      update: {
+        accountId: accountId, // 如果钱包已存在，确保它关联到当前用户
+      },
     });
-    return { ok: true };
+
+    return wallet;
   }
 
   @Get()
