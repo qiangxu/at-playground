@@ -11,15 +11,21 @@ export default function Home() {
   useEffect(() => {
     const handleLogin = async () => {
       if (authenticated && user) {
+        // 新增：在前端打印 Privy user 对象中的 email
+        console.log('[WEB] Email from Privy user object:', user.email?.address);
+
         const tok = await getAccessToken();
         if (!tok) return;
 
         setAccessToken(tok);
 
         try {
-          console.log('[WEB] 准备发送 /auth/privy 请求，token:', tok ? '存在' : '不存在');
-          // Step 1: Authenticate with your backend
-          await api.post('/auth/privy', { idToken: tok });
+          console.log('[WEB] 准备发送 /auth/privy 请求...');
+          // Step 1: Authenticate with your backend, now sending email as well
+          await api.post('/auth/privy', { 
+            idToken: tok,
+            email: user.email?.address, // <-- 新增：将 email 一起发送
+          });
           console.log('[WEB] /auth/privy 请求发送成功！');
 
           // Step 2: Register the user's wallet if it exists

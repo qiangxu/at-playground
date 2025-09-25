@@ -8,8 +8,8 @@ export class AuthController {
   constructor(private prisma: PrismaService, private jwt: JwtService) {}
 
   @Post('privy')
-  async privy(@Body() dto: { idToken: string }) {
-    console.log('[API] /auth/privy request received. Token length:', dto.idToken?.length);
+  async privy(@Body() dto: { idToken: string; email?: string }) { // <-- 1. 更新 DTO 类型
+    console.log('[API] /auth/privy request received with DTO:', dto); // <-- 更新日志
 
     // 1. 手动从环境变量生成 PEM 公钥
     const jwk = JSON.parse(process.env.PRIVY_JWK_JSON!);
@@ -22,13 +22,18 @@ export class AuthController {
       audience: process.env.PRIVY_AUD,
     });
 
-    const email = payload.email as string | undefined;
+    console.log('[API] Decoded JWT Payload:', payload);
+    
+    // 3. 直接从请求体 DTO 中获取 email
+    const email = dto.email; 
+    console.log('[API] Extracted email from DTO:', email); // <-- 更新日志
+
     const privyUserId = payload.sub as string;
 
     const account = await this.prisma.account.upsert({
       where: { privyUserId },
-      create: { privyUserId, email },
-      update: { email },
+      create: { privyUserId, email }, // <-- 使用从 DTO 获取的 email
+      update: { email },             // <-- 使用从 DTO 获取的 email
     });
 
     const access_token = this.jwt.sign({ sub: account.id }, { secret: process.env.JWT_SECRET!, expiresIn: process.env.JWT_EXPIRES || '15m' });
