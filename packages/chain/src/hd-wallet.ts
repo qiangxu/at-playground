@@ -8,11 +8,6 @@ if (!mnemonic) {
 }
 
 const mNode = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, "m");
-console.log('Master Node Depth:', mNode.depth); 
-
-
-console.log('0th HD addr:', mNode.derivePath(`m/44'/60'/0'/0/0`).address);
-console.log('1st HD addr:', mNode.derivePath(`m/44'/60'/0'/0/1`).address);
 
 export function deriveUserDepositWallet(userId: string): string {
   // 1. 使用 SHA-256 对 userId 进行哈希

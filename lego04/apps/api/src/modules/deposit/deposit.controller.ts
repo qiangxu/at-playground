@@ -6,7 +6,7 @@ import { deriveUserDepositWallet } from '@at/chain'; // 导入我们的 SDK 函�
 export class DepositController {
   @Get('address')
   @UseGuards(JwtAuthGuard) // 使用守卫保护此接口
-  async getDepositAddress(@Request() req) {
+  async getDepositAddress(@Request() req: any) {
     // 从守卫注入的 req.user 对象中获取 accountId
     const accountId = req.user.accountId;
 
