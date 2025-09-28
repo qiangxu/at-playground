@@ -10,7 +10,7 @@ export class WalletsController {
   @UseGuards(JwtAuthGuard) // <-- 应用守卫！此接口现在受到保护
   async register(
     @Body() dto: { address: string; provider: string; kind: string },
-    @Request() req, // <-- 获取请求对象
+    @Request() req: any, // <-- 获取请求对象
   ) {
     // 从守卫附加的 user 对象中获取 accountId
     const accountId = req.user.accountId;

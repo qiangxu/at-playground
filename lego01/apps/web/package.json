@@ -3,20 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:ssl": "pnpm exec dotenv -e ../../../.env -e ../../.env -- sh -c 'concurrently --names \"WEB,PROXY\" -c \"bgBlue.bold,bgMagenta.bold\" \"pnpm:dev:web\" \"pnpm:dev:proxy\"'",
+    "dev": "pnpm exec dotenv -e ../../../.env -e ../../.env -- sh -c 'concurrently --names \"WEB,PROXY\" -c \"bgBlue.bold,bgMagenta.bold\" \"pnpm:dev:web\" \"pnpm:dev:ssl\"'",
     "dev:web": "next dev -p $WEB_PORT",
-    "dev:proxy": "local-ssl-proxy --source $SSL_PORT --target $WEB_PORT",
+    "dev:ssl": "local-ssl-proxy --source $SSL_PORT --target $WEB_PORT",
     "build": "pnpm exec dotenv -e ../../../.env -e ../../.env -- next build",
     "start": "pnpm exec dotenv -e ../../../.env -e ../../.env -- next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@privy-io/react-auth": "^3.0.1",
     "next": "15.5.0",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@prisma/client": "^6.14.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -24,6 +26,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.0",
     "local-ssl-proxy": "^2.0.5",
+    "prisma": "^6.14.0",
     "typescript": "^5"
   }
 }
