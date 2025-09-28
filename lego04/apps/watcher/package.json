@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "dev": "pnpm exec dotenv -e ../../.env -e ../../../.env -- nodemon --watch 'src/**/*.ts' --exec 'ts-node -r tsconfig-paths/register src/main.ts'",
     "start": "pnpm exec dotenv -e ../../.env -e ../../../.env -- node dist/src/main.js"
   },
   "dependencies": {
@@ -16,7 +17,10 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "dotenv-cli": "^7.4.2",
+    "nodemon": "^3.1.10",
     "prisma": "^5.17.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.5.4"
   }
 }
