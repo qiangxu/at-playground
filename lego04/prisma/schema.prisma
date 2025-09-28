@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType    = "binary"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------
+// 核心模型
+// --------------------------------------
+
+// 用户账户的简化镜像，ID 来自 lego01 的 JWT
+model Account {
+  id            String          @id @unique
+  email         String?
+  wallets       Wallet[]
+  ledgerAccount LedgerAccount?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 用户绑定的外部钱包
+model Wallet {
+  id        Int      @id @default(autoincrement())
+  address   String   @unique
+  provider  String // e.g., "privy"
+  kind      String // e.g., "embedded"
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 链上资产信息
+model Asset {
+  id        Int      @id @default(autoincrement())
+  chainId   Int
+  address   String   @unique
+  symbol    String
+  decimals  Int
+  ledgerEntries LedgerEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --------------------------------------
+// 账本系统模型
+// --------------------------------------
+
+enum LedgerAccountType {
+  user
+  platform
+}
+
+// 总账账户
+model LedgerAccount {
+  id        Int      @id @default(autoincrement())
+  type      LedgerAccountType
+  balance   Decimal  @default(0.0)
+  accountId String?  @unique // 关联到用户账户
+  account   Account? @relation(fields: [accountId], references: [id])
+  
+  debitEntries  LedgerEntry[] @relation("DebitAccount")
+  creditEntries LedgerEntry[] @relation("CreditAccount")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 双分录记账条目
+model LedgerEntry {
+  id        Int      @id @default(autoincrement())
+  amount    Decimal
+  assetId   Int
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  
+  debitAccountId  Int
+  debitAccount    LedgerAccount @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  
+  creditAccountId Int
+  creditAccount   LedgerAccount @relation("CreditAccount", fields: [creditAccountId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+// --------------------------------------
+// 提现模型
+// --------------------------------------
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model WithdrawalRequest {
+  id        Int      @id @default(autoincrement())
+  accountId String
+  amount    Decimal
+  assetId   Int
+  toAddress String
+  status    WithdrawalStatus @default(PENDING)
+  txHash    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

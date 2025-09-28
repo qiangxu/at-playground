@@ -1,0 +1,29 @@
+{
+  "name": "@lego04/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:ssl": "pnpm exec dotenv -e ../../../.env -e ../../.env -- sh -c 'concurrently --names \"WEB,PROXY\" -c \"bgBlue.bold,bgMagenta.bold\" \"pnpm:dev:web\" \"pnpm:dev:proxy\"'",
+    "dev:web": "next dev -p $WEB_PORT",
+    "dev:proxy": "local-ssl-proxy --source $SSL_PORT --target $WEB_PORT",
+    "build": "pnpm exec dotenv -e ../../../.env -e ../../.env -- next build",
+    "start": "pnpm exec dotenv -e ../../../.env -e ../../.env -- next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "next": "15.5.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.0",
+    "local-ssl-proxy": "^2.0.5",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS", // <-- 修改点：回归标准 CommonJS
+    "moduleResolution": "node", // <-- 修改点：使用标准的 node 解析
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021", // 使用一个更广泛兼容的目标版本
+    "sourceMap": true,
+    "outDir": "./dist",
+    //"baseUrl": "./src", // <-- 将 baseUrl 指向 src
+    "baseUrl": ".", // <-- 将 baseUrl 指向 src
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": false, // NestJS 项目中通常不开启
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@at/chain": ["../../../packages/chain/src"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
