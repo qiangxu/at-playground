@@ -6,8 +6,11 @@
     "db:migrate": "pnpm --dir apps/api dlx prisma migrate dev --name init"
   },
   "dependencies": {
-    "@privy-io/react-auth": "^2.22.0",
+    "@prisma/client": "^6.16.2",
     "axios": "^1.11.0",
     "zod": "^4.1.3"
+  },
+  "devDependencies": {
+    "@privy-io/react-auth": "^2.25.0"
   }
 }

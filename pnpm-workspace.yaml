@@ -2,4 +2,5 @@ packages:
   - 'lego01/**'
   - 'lego02/**'
   - 'lego03/**'
+  - 'lego04/**'
   - 'packages/**'
