@@ -22,6 +22,31 @@ const Schema = z.object({
   }).optional()
 });
 
+const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3100";
+
+// 2. 创建一个异步函数，专门负责从 API 获取和验证数据
+async function getTokenConfig() {
+  try {
+    // 使用 fetch 从后端 API 获取数据。'no-store' 确保每次都是最新数据。
+    const response = await fetch(`${apiBase}/api/token-config`, { cache: "no-store" });
+
+    // 如果请求失败，抛出错误
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // 使用 Zod schema 解析和验证数据，如果格式不匹配会抛出错误
+    return Schema.parse(data);
+  } catch (error) {
+    // 捕获任何错误（网络错误、解析错误等）并打印到服务器控制台
+    console.error("Failed to get token config:", error);
+    // 返回 null，让 UI 组件知道数据加载失败
+    return null;
+  }
+}
+
 type Cfg = z.infer<typeof Schema>;
 type SchedItem = { t: string; mint: string; to: string };
 
@@ -54,10 +79,25 @@ export default function Page() {
 
   const [logs, setLogs] = useState("");
   const [addr, setAddr] = useState<{ token?: string; restrictor?: string }>({});
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3100";
 
   const applyCsvOnBlur = (raw: string) =>
     raw.split(",").map((s) => s.trim()).filter(Boolean);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cfg = await getTokenConfig();
+      if (!cfg || cancelled) return;
+      setForm(cfg);
+      setMintersStr(cfg.roles.minters?.join(",") || "");
+      setComplianceStr(cfg.roles.complianceAdmins?.join(",") || "");
+      setWhitelistStr(cfg.whitelist?.allow?.join(",") || "");
+      setSched(cfg.issuance?.schedule || []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onUploadYaml = async (file: File) => {
     const txt = await file.text();
@@ -183,6 +223,45 @@ export default function Page() {
         </div>
 
         <div className="space-y-3">
+          <h2 className="font-semibold">配置概览</h2>
+          <div className="space-y-2 text-sm">
+            <div><strong>类型:</strong> {form.type}</div>
+            <div><strong>合规管理员:</strong></div>
+            <ul className="list-disc pl-5">
+              {(form.roles.complianceAdmins || []).length > 0 ? (
+                form.roles.complianceAdmins.map((addr, idx) => (
+                  <li key={`compliance-${idx}`} className="font-mono text-xs break-all">{addr}</li>
+                ))
+              ) : (
+                <li className="text-gray-500">无</li>
+              )}
+            </ul>
+
+            <div><strong>Whitelist:</strong></div>
+            <ul className="list-disc pl-5">
+              {form.whitelist?.allow && form.whitelist.allow.length > 0 ? (
+                form.whitelist.allow.map((addr, idx) => (
+                  <li key={`whitelist-${idx}`} className="font-mono text-xs break-all">{addr}</li>
+                ))
+              ) : (
+                <li className="text-gray-500">未配置白名单</li>
+              )}
+            </ul>
+
+            <div><strong>发行计划:</strong></div>
+            <ul className="list-disc pl-5">
+              {sched.length > 0 ? (
+                sched.map((row, idx) => (
+                  <li key={`schedule-${idx}`} className="text-xs">
+                    <span className="font-semibold">{row.t}</span> · mint {row.mint || "-"} → {row.to || "-"}
+                  </li>
+                ))
+              ) : (
+                <li className="text-gray-500">暂无计划</li>
+              )}
+            </ul>
+          </div>
+
           <h2 className="font-semibold">预览</h2>
           <pre className="text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-auto h-72">
             {yaml.dump(form as unknown)}

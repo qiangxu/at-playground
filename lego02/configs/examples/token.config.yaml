@@ -19,3 +19,5 @@ whitelist:
     - '0xa2dc890F376CE8604919d556567d95DD69363f54'
     - '0x570c0F440201724835274f310b8e13631c79003E'
     - '0xC2e67C96B86d7db05C50c87c14D08C7f59e5e2Ed'
+transferRestrictors:
+  - name: SimpleRestrictor

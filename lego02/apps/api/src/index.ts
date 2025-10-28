@@ -11,8 +11,10 @@ import { fileURLToPath } from 'url';
 import { store } from "./store.js";
 import { ethers } from "ethers";
 import crypto from "crypto";
-import { ob, OrderRow } from "./orderbook";
-ob.init();
+import { ob as orderbook } from "./orderbook.js";
+import type { OrderRow, TradeRow } from "./orderbook.js";
+
+orderbook.init();
 store.init();
 
 dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
@@ -28,6 +30,16 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.text({ type: ["text/yaml", "application/x-yaml"], limit: "1mb" }));
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.info(`[API] -> ${req.method} ${req.originalUrl}`);
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    console.info(`[API] <- ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+  });
+  next();
+});
 
 const ConfigSchema = z.object({
   type: z.string().default("erc20_restricted"),
@@ -82,7 +94,7 @@ app.post("/api/orders/signed", async (req, res) => {
 
     // 入簿: 兼容 M3 的 ob.putOrder
     const id = crypto.randomUUID();
-    ob.putOrder({ id, token: value.token, owner: value.owner, side: value.side===0?"buy":"sell", price: String(value.price), amount: String(value.amount), filled: "0", status: "open", createdAt: Date.now() });
+    orderbook.putOrder({ id, token: value.token, owner: value.owner, side: value.side===0?"buy":"sell", price: String(value.price), amount: String(value.amount), filled: "0", status: "open", createdAt: Date.now() });
     return res.json({ ok: true, id });
   } catch (e:any) {
     return res.status(400).json({ ok:false, error: e.message });
@@ -233,7 +245,6 @@ app.get("/api/purchase-intents", (req, res) => {
   return res.json({ ok: true, data });
 });
 
-
 // 1) 提交挂单
 app.post("/api/orders", (req, res) => {
   console.log(`[API] Received POST /api/orders`, req.body);
@@ -242,8 +253,8 @@ app.post("/api/orders", (req, res) => {
     if (!token || !owner || !side || !price || !amount) return res.status(400).json({ ok: false, error: "missing_fields" });
     if (!(side === "buy" || side === "sell")) return res.status(400).json({ ok: false, error: "invalid_side" });
     const id = crypto.randomUUID();
-    const row: OrderRow = { id, token, owner, side, price: String(price), amount: String(amount), filled: "0", status: "open", createdAt: Date.now() };
-    ob.putOrder(row);
+  const row: OrderRow = { id, token, owner, side, price: String(price), amount: String(amount), filled: "0", status: "open", createdAt: Date.now() };
+    orderbook.putOrder(row);
     console.log(`[API] Placed order ${id}: ${side} ${amount} ${token} @ ${price} by ${owner}`);
     return res.json({ ok: true, id });
   } catch (e: any) {
@@ -256,9 +267,11 @@ app.post("/api/orders", (req, res) => {
 app.get("/api/orderbook", (req, res) => {
   const token = String(req.query.token || "").toLowerCase();
   if (!token) return res.status(400).json({ ok: false, error: "token_required" });
-  const all = ob.listOrders().filter(x => x.token.toLowerCase() === token && (x.status === "open" || x.status === "partial"));
-  const buys = [...all.filter(x => x.side === "buy")].sort((a, b) => Number(b.price) - Number(a.price));
-  const sells = [...all.filter(x => x.side === "sell")].sort((a, b) => Number(a.price) - Number(b.price));
+  const all = orderbook
+    .listOrders()
+    .filter((x: OrderRow) => x.token.toLowerCase() === token && (x.status === "open" || x.status === "partial"));
+  const buys = [...all.filter((x: OrderRow) => x.side === "buy")].sort((a, b) => Number(b.price) - Number(a.price));
+  const sells = [...all.filter((x: OrderRow) => x.side === "sell")].sort((a, b) => Number(a.price) - Number(b.price));
   return res.json({ ok: true, data: { buys, sells } });
 });
 
@@ -270,7 +283,7 @@ app.post("/api/orders/:id/accept", (req, res) => {
     const id = req.params.id;
     const { taker, amount } = req.body || {};
     if (!taker) return res.status(400).json({ ok: false, error: "taker_required" });
-    const o = ob.getOrder(id);
+    const o = orderbook.getOrder(id);
     if (!o) return res.status(404).json({ ok: false, error: "order_not_found" });
     if (o.status === "filled" || o.status === "cancelled") return res.status(400).json({ ok: false, error: "order_closed" });
 
@@ -285,10 +298,10 @@ app.post("/api/orders/:id/accept", (req, res) => {
     const newStatus = (BigInt(newFilled) === BigInt(o.amount)) ? "filled" : "partial";
 
 
-    ob.updateOrder(id, { filled: newFilled, status: newStatus });
+    orderbook.updateOrder(id, { filled: newFilled, status: newStatus });
 
 
-    ob.putTrade({ id: crypto.randomUUID(), orderId: id, token: o.token, price: o.price, amount: fill.toString(), maker: o.owner, taker, createdAt: Date.now() });
+    orderbook.putTrade({ id: crypto.randomUUID(), orderId: id, token: o.token, price: o.price, amount: fill.toString(), maker: o.owner, taker, createdAt: Date.now() });
 
     console.log(`[API] Accepted order ${id} by ${taker}, amount: ${fill.toString()}. New status: ${newStatus}`);
     return res.json({ ok: true, filled: fill.toString(), status: newStatus, lotId: o.lotId, quote: o.quote, payAmount: (BigInt(o.price)*fill).toString() });
@@ -305,11 +318,11 @@ app.post("/api/orders/:id/cancel", (req, res) => {
   try {
     const id = req.params.id;
     const { owner } = req.body || {};
-    const o = ob.getOrder(id);
+    const o = orderbook.getOrder(id);
     if (!o) return res.status(404).json({ ok: false, error: "order_not_found" });
     if (o.owner.toLowerCase() !== String(owner || "").toLowerCase()) return res.status(403).json({ ok: false, error: "forbidden" });
     if (o.status === "filled" || o.status === "cancelled") return res.status(400).json({ ok: false, error: "order_closed" });
-    ob.updateOrder(id, { status: "cancelled" });
+    orderbook.updateOrder(id, { status: "cancelled" });
     console.log(`[API] Cancelled order ${id} by ${owner}`);
     return res.json({ ok: true });
   } catch (e: any) {
@@ -322,7 +335,36 @@ app.post("/api/orders/:id/cancel", (req, res) => {
 // 5) 成交记录查询
 app.get("/api/trades", (req, res) => {
   const token = String(req.query.token || "");
-  const all = ob.listTrades();
-  const data = token ? all.filter(x => x.token.toLowerCase() === token.toLowerCase()) : all;
+  const all = orderbook.listTrades();
+  const data = token
+    ? all.filter((x: TradeRow) => x.token.toLowerCase() === token.toLowerCase())
+    : all;
   return res.json({ ok: true, data });
+});
+
+// 新增的 API 路由
+app.get("/api/token-config", (req, res) => {
+  try {
+    // 计算配置文件的路径
+    const configPath = path.join(
+      __dirname,
+      "../../../configs/examples/token.config.yaml"
+    );
+
+    // 检查文件是否存在
+    if (!fs.existsSync(configPath)) {
+      console.error("Token config file not found at:", configPath);
+      return res.status(404).json({ error: "Token config file not found." });
+    }
+
+    // 读取并解析文件
+    const fileContent = fs.readFileSync(configPath, "utf8");
+    const configData = yaml.load(fileContent);
+
+    // 发送 JSON 响应
+    res.json(configData);
+  } catch (error) {
+    console.error("Error reading or parsing token config:", error);
+    res.status(500).json({ error: "Failed to retrieve token configuration." });
+  }
 });

@@ -6,8 +6,7 @@
     "scripts": {
         "build": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat compile",
         "test": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat test",
-        "deploy:factory": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat run deploy/00_deploy_factory.ts --network baseSepolia",
-        "deploy:yaml": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat run deploy/01_deploy_from_yaml.ts --network baseSepolia",
+        "deploy:yaml": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat run deploy/deploy_from_yaml.ts --network baseSepolia",
         "export-abi": "TS_NODE_PROJECT=./tsconfig.hardhat.json hardhat export-abi --out ../../packages/abi"
     },
     "keywords": [],
