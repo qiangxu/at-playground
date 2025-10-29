@@ -1,48 +1,9 @@
 import "dotenv/config";
-import { ethers, upgrades, network } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import { NonceManager } from "ethers";
 import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
-import { existsSync, readFileSync, writeFileSync } from "fs";
-
-export interface TokenConfig {
-  name: string;
-  symbol: string;
-  cap: number;
-  tokenAddress?: string;
-  transferRestrictors?: {
-    name: string;
-    address?: string;
-  }[];
-}
-
-export function loadTokenConfig(filePath: string): TokenConfig {
-  const fileContent = readFileSync(filePath, "utf8");
-  return yaml.load(fileContent) as TokenConfig;
-}
-
-export function saveTokenConfig(config: TokenConfig) {
-  const filePath = (network.config as any).tmpTokenConfigFile as string;
-  const fileContent = yaml.dump(config);
-  writeFileSync(filePath, fileContent, "utf8");
-  console.log(`Token config saved to ${filePath}`);
-}
-
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-async function withRetry<T>(fn: () => Promise<T>, retries = 5, delayMs = 2000, retryCount = 1): Promise<T> {
-  try {
-    return await fn();
-  } catch (error: any) {
-    if (error.code === 'ECONNRESET' && retryCount <= retries) {
-      console.log(`[Retry ${retryCount}/${retries}] Network error detected. Retrying in ${delayMs / 1000}s...`);
-      await delay(delayMs);
-      return withRetry(fn, retries, delayMs, retryCount + 1);
-    }
-    throw error;
-  }
-}
 
 function addr(input: string): string {
   if (!input) throw new Error("empty address");
@@ -51,52 +12,99 @@ function addr(input: string): string {
 }
 
 async function main() {
-  await withRetry(async () => {
-    const [deployer] = await ethers.getSigners();
-    console.log("deployer:", deployer.address);
+  const configPath =
+    process.env.TOKEN_CONFIG ||
+    path.resolve(__dirname, "../../configs/examples/token.config.yaml");
 
-    const tmpTokenConfigFile = (network.config as any).tmpTokenConfigFile as string;
-    if (!existsSync(tmpTokenConfigFile)) {
-      throw new Error(`tmpTokenConfigFile not found: ${tmpTokenConfigFile}`);
+  const raw = fs.readFileSync(configPath, "utf8");
+  const cfg: any = yaml.load(raw);
+
+  if (cfg.type !== "erc20_restricted") {
+    throw new Error("M0 仅支持 erc20_restricted");
+  }
+
+  // signer + NonceManager
+  const [deployer0] = await ethers.getSigners();
+  console.log("deployer:", deployer0.address);
+  const nm = new NonceManager(deployer0);
+  //const pending = await ethers.provider.getTransactionCount(deployer0.address, "pending");
+  //await nm.setTransactionCount(pending);
+
+  // deploy SimpleRestrictor(admin = deployer0)
+  const RestrictorFactory = await ethers.getContractFactory("SimpleRestrictor", nm);
+  const restrictor = await RestrictorFactory.deploy(deployer0.address);
+  await restrictor.waitForDeployment();
+  const restrictorAddr = await restrictor.getAddress();
+  console.log("restrictor:", restrictorAddr);
+
+  // deploy token proxy (UUPS)
+  const TokenFactory = await ethers.getContractFactory("SecurityTokenV1Upgradeable", nm);
+  const owner = addr(cfg.roles.owner);
+  const token = await upgrades.deployProxy(
+    TokenFactory,
+    [
+      cfg.name,
+      cfg.symbol,
+      Number(cfg.decimals || 18),
+      BigInt(cfg.cap),
+      owner,
+      restrictorAddr
+    ],
+    { kind: "uups" }
+  );
+  await token.waitForDeployment();
+  const tokenAddr = await token.getAddress();
+  console.log("token:", tokenAddr);
+
+  // grant roles on token
+  //const minterRole = await token.MINTER_ROLE();
+  //const complianceRole = await token.COMPLIANCE_ROLE();
+
+  const ROLE_MINTER = ethers.id("MINTER_ROLE");
+  const ROLE_COMPLIANCE = ethers.id("COMPLIANCE_ROLE");
+
+  for (const m of cfg.roles.minters || []) {
+    const a = addr(m);
+    const tx = await token.connect(nm).grantRole(ROLE_MINTER, a);
+    await tx.wait();
+  }
+  for (const c of cfg.roles.complianceAdmins || []) {
+    const a = addr(c);
+    const tx = await token.connect(nm).grantRole(ROLE_COMPLIANCE, a);
+    await tx.wait();
+  }
+
+  // setup compliance whitelist on restrictor
+  const defaultAdmin = await restrictor.DEFAULT_ADMIN_ROLE();
+  const restrictorCompliance = await restrictor.COMPLIANCE_ROLE();
+
+  const complianceAdmins: string[] = (cfg.roles.complianceAdmins || []).map(addr);
+  for (const admin of complianceAdmins) {
+    let tx = await restrictor.connect(nm).grantRole(defaultAdmin, admin);
+    await tx.wait();
+    tx = await restrictor.connect(nm).grantRole(restrictorCompliance, admin);
+    await tx.wait();
+  }
+  for (const u of (cfg.whitelist && cfg.whitelist.allow) || []) {
+    const tx = await restrictor.connect(nm).setWhitelist(u, true);
+    await tx.wait();
+  }
+
+  // issuance: immediate mint
+  const steps: any[] = (cfg.issuance && cfg.issuance.schedule) || [];
+  for (const s of steps) {
+    if (String(s.t || "").toLowerCase() === "immediate") {
+      console.log("minting immediate:", s.mint, "to", s.to);
+      const tx = await token.connect(nm).mint(s.to, BigInt(s.mint));
+      await tx.wait();
     }
-    const tokenConfig = loadTokenConfig(tmpTokenConfigFile);
+  }
 
-    const SecurityToken = await ethers.getContractFactory("SecurityTokenV1Upgradeable");
-    const securityToken = await upgrades.deployProxy(SecurityToken, [
-      tokenConfig.name,
-      tokenConfig.symbol,
-      tokenConfig.cap,
-      deployer.address,
-    ], {
-      initializer: "initialize",
-      kind: "uups",
-    });
-    await securityToken.waitForDeployment();
-    const securityTokenAddress = await securityToken.getAddress();
-    console.log("SecurityToken deployed to:", securityTokenAddress);
-    tokenConfig.tokenAddress = securityTokenAddress;
-
-    if (tokenConfig.transferRestrictors && tokenConfig.transferRestrictors.length > 0) {
-      for (const restrictor of tokenConfig.transferRestrictors) {
-        const Restrictor = await ethers.getContractFactory(restrictor.name);
-        const restrictorInstance = await Restrictor.deploy();
-        await restrictorInstance.waitForDeployment();
-        const restrictorAddress = await restrictorInstance.getAddress();
-        console.log(`${restrictor.name} deployed to:`, restrictorAddress);
-        restrictor.address = restrictorAddress;
-
-        const tx = await securityToken.addRestrictor(restrictorAddress);
-        await tx.wait();
-        console.log(`add restrictor ${restrictor.name} to token`);
-      }
-    }
-
-    saveTokenConfig(tokenConfig);
-  });
+  console.log("done");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });
 

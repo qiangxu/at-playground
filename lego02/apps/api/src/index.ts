@@ -18,10 +18,10 @@ orderbook.init();
 store.init();
 
 dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
-if (!process.env.RPC_BASE_SEPOLIA) {
-  throw new Error("RPC_BASE_SEPOLIA missing, check lego02/.env");
+if (!process.env.RPC_BASE) {
+  throw new Error("RPC_BASE missing, check lego02/.env");
 }
-console.log("api using RPC_BASE_SEPOLIA:", process.env.RPC_BASE_SEPOLIA.slice(0, 40) + "...");
+console.log("api using RPC_BASE:", process.env.RPC_BASE.slice(0, 40) + "...");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -116,10 +116,12 @@ app.post("/api/tokens/deploy", async (req, res) => {
 
     // 运行 hardhat 脚本
     const deployCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-    console.log(`[API] Executing: ${deployCmd} run deploy:yaml in ${workDir}`);
+    const deployArgs = ["run", "deploy:yaml"];
+    console.log(`[API] TOKEN_CONFIG for deploy: ${tmpPath}`);
+    console.log(`[API] Executing: ${deployCmd} ${deployArgs.join(" ")} (cwd=${workDir})`);
     const child = execa(
-      process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-      ["run", "deploy:yaml"],
+      deployCmd,
+      deployArgs,
       {
         cwd: workDir,
         env: { ...process.env, TOKEN_CONFIG: tmpPath }
@@ -157,7 +159,7 @@ app.listen(port, () => {
 
 
 // 基础 provider, 读链上信息
-const provider = new ethers.JsonRpcProvider(process.env.RPC_BASE_SEPOLIA);
+const provider = new ethers.JsonRpcProvider(process.env.RPC_BASE);
 
 app.get("/api/network/chainId", async (_req, res) => {
 
